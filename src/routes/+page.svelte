@@ -450,7 +450,7 @@
 								class:bg-gray-200={!isDarkMode}
 								role="switch"
 								aria-checked={isDarkMode}
-								aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+								aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 							>
 								<span
 									class="inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-200"
