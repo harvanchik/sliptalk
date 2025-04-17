@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { settings } from '../stores/settings';
+	import { fade, fly } from 'svelte/transition';
 
 	// Type definitions
 	interface Phrase {
@@ -30,6 +31,7 @@
 
 	// Settings modal state
 	let showSettingsModal = false;
+	let isConfirmingReset = false;
 
 	// Generate phrases using our server API endpoint
 	async function generateAIPhrases(): Promise<Phrase[]> {
@@ -82,10 +84,10 @@
 			id: crypto.randomUUID()
 		};
 
-		// Add to history
+		// Add to history without clearing the history
 		phraseHistory = [newBatch, ...phraseHistory];
 
-		calculateScore();
+		// Don't reset the score, just save the new state
 		saveToLocalStorage();
 		isLoading = false;
 	}
@@ -168,7 +170,28 @@
 
 	// Toggle phrase used status
 	function togglePhraseUsed(index: number) {
+		// Update the current phrase
 		phrases[index].used = !phrases[index].used;
+
+		// Find this phrase in history (if it exists in history)
+		const currentPhrase = phrases[index];
+
+		// Find the batch that contains this phrase
+		const batch = phraseHistory.find((batch) =>
+			batch.phrases.some((p) => p.text === currentPhrase.text && p.points === currentPhrase.points)
+		);
+
+		if (batch) {
+			// Find the phrase in the batch and update its used status
+			const phraseInBatch = batch.phrases.find(
+				(p) => p.text === currentPhrase.text && p.points === currentPhrase.points
+			);
+
+			if (phraseInBatch) {
+				phraseInBatch.used = currentPhrase.used;
+			}
+		}
+
 		calculateScore();
 		saveToLocalStorage();
 	}
@@ -180,18 +203,29 @@
 
 	// Reset score without generating new phrases
 	function resetScore() {
-		phrases = phrases.map((phrase) => ({
-			...phrase,
-			used: false
-		}));
-		calculateScore();
-		saveToLocalStorage();
-		showSettingsModal = false;
+		if (isConfirmingReset) {
+			phrases = phrases.map((phrase) => ({
+				...phrase,
+				used: false
+			}));
+			calculateScore();
+			saveToLocalStorage();
+			isConfirmingReset = false;
+			showSettingsModal = false; // Close the modal after successful reset
+		} else {
+			isConfirmingReset = true;
+			setTimeout(() => {
+				isConfirmingReset = false;
+			}, 3000);
+		}
 	}
 
 	// Toggle settings modal
 	function toggleSettings() {
 		showSettingsModal = !showSettingsModal;
+		if (!showSettingsModal) {
+			isConfirmingReset = false;
+		}
 	}
 
 	// Close modal when clicking outside
@@ -199,6 +233,7 @@
 		const target = e.target as HTMLElement;
 		if (target.classList.contains('modal-backdrop')) {
 			showSettingsModal = false;
+			isConfirmingReset = false;
 		}
 	}
 
@@ -312,7 +347,7 @@
 			<button
 				on:click={resetGame}
 				disabled={isLoading}
-				class="px-6 py-3 bg-black text-white dark:bg-gray-800 dark:border dark:border-gray-700 font-bold shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed w-full transition-colors duration-200"
+				class="px-6 py-3 bg-black text-white dark:bg-gray-800 dark:border dark:border-gray-700 font-bold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed w-full transition-all duration-200"
 			>
 				{isLoading ? 'Generating...' : 'Get New Phrases'}
 			</button>
@@ -363,13 +398,13 @@
 			>
 				<h2 class="text-xl font-bold mb-4 dark:text-white">Phrase History</h2>
 
-				{#if phraseHistory.length === 0}
+				{#if phraseHistory.length <= 1}
 					<p class="text-gray-500 dark:text-gray-400 text-center py-4">
 						No previous phrases found.
 					</p>
 				{:else}
 					<div class="space-y-6">
-						{#each phraseHistory as batch}
+						{#each phraseHistory.slice(1) as batch}
 							<div
 								class="bg-gray-50 dark:bg-gray-800 p-3 rounded-sm border border-gray-100 dark:border-gray-700 transition-colors duration-200"
 							>
@@ -380,11 +415,22 @@
 									{#each batch.phrases as phrase}
 										<div class="flex items-start">
 											<span
-												class="inline-block px-1 py-0.5 bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-100 text-xs font-bold mr-2 mt-0.5 transition-colors duration-200"
+												class="inline-block px-1 py-0.5 text-xs font-bold mr-2 mt-0.5 transition-colors duration-200"
+												class:opacity-60={!phrase.used}
+												class:bg-lime-200={phrase.used}
+												class:text-lime-800={phrase.used}
+												class:bg-sky-100={!phrase.used}
+												class:text-sky-800={!phrase.used}
+												class:dark:bg-sky-900={!phrase.used}
+												class:dark:text-sky-100={!phrase.used}
+												class:dark:bg-lime-900={phrase.used}
+												class:dark:text-lime-100={phrase.used}
 											>
 												{phrase.points}
 											</span>
-											<span class="text-sm dark:text-gray-300">"{phrase.text}"</span>
+											<span class="text-sm dark:text-gray-300" class:opacity-60={!phrase.used}>
+												"{phrase.text}"
+											</span>
 										</div>
 									{/each}
 								</div>
@@ -397,30 +443,32 @@
 
 		<!-- Settings Modal -->
 		{#if showSettingsModal}
-			<!-- Fixed: Added role and keyboard events to modal backdrop div -->
 			<div
-				class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop"
+				class="fixed inset-0 bg-black/70 backdrop-blur-[2px] flex items-center justify-center z-50 modal-backdrop"
 				on:click={closeModalOnOutsideClick}
 				on:keydown={(e) => e.key === 'Escape' && (showSettingsModal = false)}
 				role="presentation"
+				transition:fade={{ duration: 200 }}
 			>
 				<div
-					class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm transition-colors duration-200"
+					class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-0 w-11/12 max-w-sm transition-colors duration-200"
 					role="dialog"
 					aria-modal="true"
 					aria-labelledby="settings-modal-title"
+					transition:fly={{ y: 10, duration: 300 }}
 				>
-					<div class="flex justify-between items-center mb-4">
+					<div
+						class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center"
+					>
 						<h3 id="settings-modal-title" class="text-xl font-bold dark:text-white">Settings</h3>
-						<!-- Fixed: Added aria-label to close button -->
 						<button
 							on:click={() => (showSettingsModal = false)}
-							class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+							class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
 							aria-label="Close settings"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6"
+								class="h-5 w-5"
 								fill="none"
 								viewBox="0 0 24 24"
 								stroke="currentColor"
@@ -435,47 +483,89 @@
 						</button>
 					</div>
 
-					<div class="space-y-6">
+					<div class="p-6 space-y-6">
 						<!-- Theme Toggle -->
 						<div class="flex justify-between items-center">
 							<label for="theme-toggle" class="font-medium text-gray-700 dark:text-gray-300">
-								Dark Mode
+								Appearance
 							</label>
-							<!-- Fixed: Added aria-label to theme toggle button -->
-							<button
-								id="theme-toggle"
-								on:click={() => settings.toggleTheme()}
-								class="relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
-								class:bg-sky-600={isDarkMode}
-								class:bg-gray-200={!isDarkMode}
-								role="switch"
-								aria-checked={isDarkMode}
-								aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-							>
-								<span
-									class="inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-200"
-									class:translate-x-6={isDarkMode}
-									class:translate-x-1={!isDarkMode}
-								></span>
-							</button>
+							<div class="relative">
+								<button
+									id="theme-toggle"
+									on:click={() => settings.toggleTheme()}
+									class="relative w-16 h-8 bg-gray-100 dark:bg-gray-700 rounded-full p-1 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 overflow-hidden select-none"
+									role="switch"
+									aria-checked={isDarkMode}
+									aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+									tabindex="0"
+								>
+									<!-- Sun icon (left side) -->
+									<span
+										class="absolute left-1 top-1 transition-opacity duration-300 pointer-events-none"
+										class:opacity-100={!isDarkMode}
+										class:opacity-0={isDarkMode}
+									>
+										<svg
+											class="w-6 h-6 text-yellow-500"
+											fill="currentColor"
+											viewBox="0 0 20 20"
+											xmlns="http://www.w3.org/2000/svg"
+											aria-hidden="true"
+										>
+											<path
+												d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+											/>
+										</svg>
+									</span>
+									<!-- Moon icon (right side) -->
+									<span
+										class="absolute right-1 top-1 transition-opacity duration-300 pointer-events-none"
+										class:opacity-0={!isDarkMode}
+										class:opacity-100={isDarkMode}
+									>
+										<svg
+											class="w-6 h-6 text-indigo-300"
+											fill="currentColor"
+											viewBox="0 0 20 20"
+											xmlns="http://www.w3.org/2000/svg"
+											aria-hidden="true"
+										>
+											<path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+										</svg>
+									</span>
+									<!-- Toggle knob -->
+									<span
+										class="absolute bg-white dark:bg-gray-900 w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 pointer-events-none"
+										class:translate-x-0={!isDarkMode}
+										class:translate-x-8={isDarkMode}
+									></span>
+								</button>
+							</div>
 						</div>
 
 						<!-- Reset Score -->
-						<div>
+						<div class="pt-3">
 							<button
 								on:click={resetScore}
-								class="w-full py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded transition-colors"
+								class="text-white w-full py-2.5 px-4 rounded-lg shadow-sm transition-all duration-200 font-medium text-center"
+								class:bg-red-600={!isConfirmingReset}
+								class:hover:bg-red-700={!isConfirmingReset}
+								class:bg-red-700={isConfirmingReset}
+								class:hover:bg-red-800={isConfirmingReset}
+								class:ring-4={isConfirmingReset}
+								class:ring-red-300={isConfirmingReset}
+								class:dark:ring-red-900={isConfirmingReset}
 							>
-								Reset Score to 0
+								{isConfirmingReset ? 'Tap again to confirm' : 'Reset Score'}
 							</button>
-							<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+							<p class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
 								Keeps current phrases but marks them as unused
 							</p>
 						</div>
 
 						<!-- Version Info -->
 						<div
-							class="text-center text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700"
+							class="text-center text-xs text-gray-500 dark:text-gray-400 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700"
 						>
 							SlipTalk v1.0
 						</div>
