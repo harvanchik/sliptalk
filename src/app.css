@@ -1,6 +1,3 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
-
-/* Configure dark mode to use class instead of media query */
-@custom-variant dark (&:where(.dark, .dark *));
