@@ -83,7 +83,9 @@ export const POST: RequestHandler = async () => {
 	try {
 		const apiKey = env.GEMINI_API_KEY;
 		if (!apiKey) {
-			console.error('Production error: Gemini API key not found in environment variables');
+			console.error(
+				'Error: GEMINI_API_KEY not found in environment variables. Please add this variable to your Vercel project settings.'
+			);
 			return json(fallbackPhrases(), {
 				status: 500,
 				headers: {
