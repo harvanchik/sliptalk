@@ -71,9 +71,9 @@ export interface Phrase {
 }
 
 // Fallback phrases if API call fails
-function fallbackPhrases(): Phrase[] {
+function fallbackPhrases(errorMessage?: string): Phrase[] {
 	return [
-		{ text: 'I always forget about my elbows', points: 1 },
+		{ text: errorMessage || 'I always forget about my elbows', points: 1 },
 		{ text: 'You ever think pigeons are spies?', points: 2 },
 		{ text: 'They banned me from the aquarium for tickling the stingrays', points: 3 }
 	];
@@ -86,7 +86,7 @@ export const POST: RequestHandler = async () => {
 			console.error(
 				'Error: GEMINI_API_KEY not found in environment variables. Please add this variable to your Vercel project settings.'
 			);
-			return json(fallbackPhrases(), {
+			return json(fallbackPhrases('Error: API key missing. Contact the admin.'), {
 				status: 500,
 				headers: {
 					'Cache-Control': 'no-store'
@@ -118,16 +118,50 @@ export const POST: RequestHandler = async () => {
 		Level 3 examples:
 		- ${difficulties[3].examples.join('\n- ')}
 		
+		CRITICAL - AVOID OVERUSED TOPICS: The AI has been overusing certain topics:
+		- Elevators, escalators or stairs
+		- Shoes, socks, or footwear
+		- Fortune cookies or any fortune-telling items
+		- Office supplies (staplers, paper clips, etc.)
+		- Dental topics (dentists, flossing, teeth)
+		- Accents or speech patterns
+		- Pigeons, seagulls, or common urban birds
+		- Common food items (cookies, coffee, salads)
+		- Sleep habits or dreams
+		- Common body parts (elbows, knees, fingers)
+        - Houseplants
+        - My "aura"
+		
+		Explore diverse and unexpected domains like:
+		- Obscure historical events or historical figures
+		- Unusual natural phenomena
+		- Niche hobbies or activities
+		- Abstract concepts and philosophical ideas
+		- Uncommon animals or plants
+		- Specialized professions
+		- Unusual sensory experiences
+		- Mythological references
+		- Scientific curiosities
+		- Cultural practices from around the world
+        - Crazy new specific health trends
+		
 		Guidelines for all phrases:
 		- STRICTLY follow the word count requirements for each level
-		- Ensure MAXIMUM VARIETY in themes, subjects, and vocabulary
+		- Ensure MAXIMUM VARIETY and DIVERSITY in themes, subjects, and vocabulary
+        - No fairytale-like or unrealistic scenarios
 		- No repeated structures across the three phrases
 		- Avoid using the same nouns, verbs or sentence patterns between phrases
-		- Each phrase should explore completely different topics
+		- Each phrase should explore completely different domains or fields
+        - Be specific instead of using generic terms (e.g., viper instead of snake)
 		- Keep all content safe for work but creative
 		- Make each phrase memorable and distinct in style
 		- Ensure they're pronounceable and could conceivably be used in speech
         - Respect religious and cultural sensitivities
+        - Prioritize originality over everything else
+        - Do NOT use phallic references, puns, or innuendoes
+        - Do NOT use innuendoes or sexual references
+        - Do NOT use profanity or explicit language
+        - Do NOT use inappropriate body part references (i.e, penis, vagina, etc.)
 		
 		Format your response as a JSON array of objects with 'text' and 'points' properties exactly like this:
 		[
@@ -168,6 +202,21 @@ export const POST: RequestHandler = async () => {
 			if (!response.ok) {
 				const errorData = await response.text();
 				console.error(`Gemini API error (${response.status}):`, errorData);
+
+				// Handle rate limit errors specifically
+				if (response.status === 429) {
+					return json(
+						fallbackPhrases('Rate limit exceeded. Please wait a moment before trying again.'),
+						{
+							status: 429,
+							headers: {
+								'Cache-Control': 'no-store',
+								'Retry-After': response.headers.get('Retry-After') || '60'
+							}
+						}
+					);
+				}
+
 				throw new Error(`API error: ${response.status}`);
 			}
 
