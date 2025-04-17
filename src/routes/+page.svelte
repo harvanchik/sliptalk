@@ -560,90 +560,99 @@
 				<div class="space-y-6">
 					{#each getSortedGames() as game}
 						<div class="border border-gray-200 rounded-md overflow-hidden">
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
-								class="bg-gray-50 p-3 flex justify-between items-center transition-colors duration-200 cursor-pointer"
+								class="bg-gray-50 p-3 flex justify-between items-start transition-colors duration-200 cursor-pointer"
 								on:click={() => toggleGameCollapsed(game.id)}
 							>
-								<div>
+								<div class="flex-grow">
 									{#if isEditingGameName && currentEditGameId === game.id}
-										<div class="flex items-center space-x-2">
+										<div class="flex items-center">
 											<input
 												type="text"
-												class="border border-gray-300 rounded px-2 py-1 text-sm"
+												class="flex-grow border border-gray-300 rounded px-2 py-1 text-sm"
 												bind:value={newGameName}
 												on:keydown={(e) => {
 													if (e.key === 'Enter') saveGameName();
 													if (e.key === 'Escape') cancelEditGameName();
 												}}
 												autofocus
+												on:click|stopPropagation={() => {}}
 											/>
-											<button
-												class="text-green-600 hover:text-green-800"
-												on:click={saveGameName}
-												aria-label="Save game name"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-5 w-5"
-													viewBox="0 0 20 20"
-													fill="currentColor"
+											<div class="flex space-x-1 ml-2">
+												<button
+													class="text-green-600 hover:text-green-800 p-1"
+													on:click|stopPropagation={saveGameName}
+													aria-label="Save game name"
 												>
-													<path
-														fill-rule="evenodd"
-														d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 01-1.414-1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z"
-														clip-rule="evenodd"
-													/>
-												</svg>
-											</button>
-											<button
-												class="text-red-600 hover:text-red-800"
-												on:click={cancelEditGameName}
-												aria-label="Cancel editing"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="h-5 w-5"
-													viewBox="0 0 20 20"
-													fill="currentColor"
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-4 w-4"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+													>
+														<path
+															fill-rule="evenodd"
+															d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 01-1.414-1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z"
+															clip-rule="evenodd"
+														/>
+													</svg>
+												</button>
+												<button
+													class="text-red-600 hover:text-red-800 p-1"
+													on:click|stopPropagation={cancelEditGameName}
+													aria-label="Cancel editing"
 												>
-													<path
-														fill-rule="evenodd"
-														d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-														clip-rule="evenodd"
-													/>
-												</svg>
-											</button>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-4 w-4"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+													>
+														<path
+															fill-rule="evenodd"
+															d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+															clip-rule="evenodd"
+														/>
+													</svg>
+												</button>
+											</div>
 										</div>
 									{:else}
-										<div class="flex items-center space-x-2">
-											<span class="font-medium">{game.name}</span>
-											<span class="text-xs text-gray-500">{formatDate(game.timestamp)}</span>
-											{#if game.id === settingsData.currentGameId}
-												<span class="bg-blue-100 text-blue-800 text-xs px-2 rounded-full"
-													>Active</span
+										<div>
+											<div class="flex items-center">
+												<span class="font-medium">{game.name}</span>
+												<button
+													class="text-gray-400 hover:text-gray-600 ml-1.5 opacity-70 hover:opacity-100"
+													on:click|stopPropagation={() => startEditGameName(game)}
+													aria-label="Edit game name"
 												>
-											{/if}
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-3.5 w-3.5"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+													>
+														<path
+															d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
+														/>
+													</svg>
+												</button>
+												{#if game.id === settingsData.currentGameId}
+													<span class="bg-sky-100 text-sky-800 text-xs px-2 rounded-full ml-2"
+														>Active</span
+													>
+												{/if}
+											</div>
+											<span class="text-xs text-gray-500 block mt-0.5">
+												{formatDate(game.timestamp)}
+											</span>
 										</div>
 									{/if}
 								</div>
 								<div class="flex space-x-2 items-center">
 									{#if !isEditingGameName || currentEditGameId !== game.id}
-										<button
-											class="text-gray-600 hover:text-gray-900 p-1"
-											on:click|stopPropagation={() => startEditGameName(game)}
-											aria-label="Edit game name"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												class="h-4 w-4"
-												viewBox="0 0 20 20"
-												fill="currentColor"
-											>
-												<path
-													d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
-												/>
-											</svg>
-										</button>
 										<button
 											class="text-red-600 hover:text-red-800 p-1"
 											on:click|stopPropagation={() => confirmRemoveGame(game.id)}
@@ -663,7 +672,7 @@
 											</svg>
 										</button>
 										<button
-											class="text-blue-600 hover:text-blue-800 p-1"
+											class="text-sky-600 hover:text-sky-800 p-1"
 											on:click|stopPropagation={() => selectGame(game.id)}
 											aria-label="Load this game"
 											disabled={game.id === settingsData.currentGameId}
