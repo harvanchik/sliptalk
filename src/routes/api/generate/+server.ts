@@ -83,8 +83,13 @@ export const POST: RequestHandler = async () => {
 	try {
 		const apiKey = env.GEMINI_API_KEY;
 		if (!apiKey) {
-			console.error('Gemini API key not found');
-			return json(fallbackPhrases());
+			console.error('Production error: Gemini API key not found in environment variables');
+			return json(fallbackPhrases(), {
+				status: 500,
+				headers: {
+					'Cache-Control': 'no-store'
+				}
+			});
 		}
 
 		// Enhanced prompt with more specific instructions for diversity and word count requirements
@@ -130,68 +135,85 @@ export const POST: RequestHandler = async () => {
 		]
     `;
 
-		const response = await fetch(
-			`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
-			{
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					contents: [
-						{
-							parts: [
-								{
-									text: prompt
-								}
-							]
+		try {
+			const response = await fetch(
+				`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						contents: [
+							{
+								parts: [
+									{
+										text: prompt
+									}
+								]
+							}
+						],
+						// Add temperature and top_p settings to increase creativity
+						generationConfig: {
+							temperature: 0.9,
+							topP: 0.95,
+							topK: 40
 						}
-					],
-					// Add temperature and top_p settings to increase creativity
-					generationConfig: {
-						temperature: 0.9,
-						topP: 0.95,
-						topK: 40
-					}
-				})
+					})
+				}
+			);
+
+			if (!response.ok) {
+				const errorData = await response.text();
+				console.error(`Gemini API error (${response.status}):`, errorData);
+				throw new Error(`API error: ${response.status}`);
 			}
-		);
 
-		if (!response.ok) {
-			throw new Error(`API error: ${response.status}`);
+			const data = await response.json();
+
+			// Extract the text from the response
+			const text = data.candidates[0].content.parts[0].text;
+
+			// Parse the JSON from the response text
+			// The text might contain markdown formatting, so we need to extract just the JSON part
+			const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s);
+			if (!jsonMatch) {
+				throw new Error('Failed to extract JSON from response');
+			}
+
+			const jsonText = jsonMatch[0];
+			const phrases: Phrase[] = JSON.parse(jsonText);
+
+			// Validate the phrases
+			if (!Array.isArray(phrases) || phrases.length !== 3) {
+				throw new Error('Invalid format: Expected an array of 3 phrases');
+			}
+
+			// Update our tracking of previously generated phrases
+			manageStoredPhrases(phrases.map((p) => p.text));
+
+			return json(
+				phrases.map((phrase, index) => ({
+					text: phrase.text,
+					points: index + 1 // Ensure points are 1, 2, 3
+				}))
+			);
+		} catch (fetchError) {
+			console.error('Error fetching from Gemini API:', fetchError);
+			return json(fallbackPhrases(), {
+				status: 503,
+				headers: {
+					'Cache-Control': 'no-store'
+				}
+			});
 		}
-
-		const data = await response.json();
-
-		// Extract the text from the response
-		const text = data.candidates[0].content.parts[0].text;
-
-		// Parse the JSON from the response text
-		// The text might contain markdown formatting, so we need to extract just the JSON part
-		const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s);
-		if (!jsonMatch) {
-			throw new Error('Failed to extract JSON from response');
-		}
-
-		const jsonText = jsonMatch[0];
-		const phrases: Phrase[] = JSON.parse(jsonText);
-
-		// Validate the phrases
-		if (!Array.isArray(phrases) || phrases.length !== 3) {
-			throw new Error('Invalid format: Expected an array of 3 phrases');
-		}
-
-		// Update our tracking of previously generated phrases
-		manageStoredPhrases(phrases.map((p) => p.text));
-
-		return json(
-			phrases.map((phrase, index) => ({
-				text: phrase.text,
-				points: index + 1 // Ensure points are 1, 2, 3
-			}))
-		);
 	} catch (error) {
 		console.error('Error generating phrases with Gemini:', error);
-		return json(fallbackPhrases());
+		return json(fallbackPhrases(), {
+			status: 500,
+			headers: {
+				'Cache-Control': 'no-store'
+			}
+		});
 	}
 };
